@@ -1,0 +1,8 @@
+.container {
+  width: 1200px;
+  margin: auto;
+}
+
+.code-sample {
+  white-space: pre;
+}
