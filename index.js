@@ -22,17 +22,22 @@ const RuleBuilder = () => {
   const includesCheck =
     state.versionType === "null"
       ? ""
-      : ` :-
+      : `
   workspace_has_dependency(WorkspaceCwd, '${state.moduleName}', _, ${state.dependencyType})`;
 
   const inProjectCheck =
     state.projectsNamed.trim().length === 0
       ? ""
-      : ` :- 
+      : `
   workspace_ident(WorkspaceCwd, '${state.projectsNamed}')`;
 
-  const prolog = `gen_enforced_dependency(WorkspaceCwd, '${state.moduleName}', ${version}, ${state.dependencyType})${includesCheck}${inProjectCheck}.
-`;
+  const additionalChecks =
+    includesCheck || inProjectCheck
+      ? " :- " +
+        [inProjectCheck, includesCheck].filter((t) => t.length > 0).join(",")
+      : "";
+
+  const prolog = `gen_enforced_dependency(WorkspaceCwd, '${state.moduleName}', ${version}, ${state.dependencyType})${additionalChecks}.`;
 
   return (
     <>
