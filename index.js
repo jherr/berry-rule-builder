@@ -31,25 +31,26 @@ const WhiteListBuilder = () => {
       const pkg = JSON.parse(packageJSON);
       const makeWhiteList = (deps, type) => {
         if (deps) {
-          return (
-            `gen_enforced_dependency(WorkspaceCwd, DependencyIdent, null, ${type}) :-
-  workspace_has_dependency(WorkspaceCwd, DependencyIdent, _, ${type}), ` +
-            Object.keys(deps)
-              .map(
-                (k) => `
+          const checkList =
+            Object.keys(deps).length > 0
+              ? "," +
+                Object.keys(deps)
+                  .map(
+                    (k) => `
   DependencyIdent \\= '${k}'`
-              )
-              .join(", ") +
-            "."
-          );
+                  )
+                  .join(", ")
+              : "";
+          return `gen_enforced_dependency(WorkspaceCwd, DependencyIdent, null, ${type}) :-
+  workspace_has_dependency(WorkspaceCwd, DependencyIdent, _, ${type})${checkList}.`;
         } else {
           return "";
         }
       };
       setWhiteListCode(
         [
-          makeWhiteList(pkg.dependencies, "dependencies"),
-          makeWhiteList(pkg.devDependencies, "devDependencies"),
+          makeWhiteList(pkg.dependencies || {}, "dependencies"),
+          makeWhiteList(pkg.devDependencies || {}, "devDependencies"),
         ]
           .filter((t) => t.length > 0)
           .join("\n\n")
