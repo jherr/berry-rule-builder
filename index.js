@@ -1,11 +1,86 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import ReactDOM from "react-dom";
 import { Layout, Typography, Input, Form, Select } from "antd";
 import "antd/dist/antd.css";
 import "./app.css";
 
+const { TextArea } = Input;
 const { Header, Content } = Layout;
 const { Title, Paragraph, Text } = Typography;
+
+const WhiteListBuilder = () => {
+  const [packageJSON, setPackageJSON] = useState(
+    JSON.stringify(
+      {
+        dependencies: {
+          react: "^16.13.1",
+          "react-dom": "^16.13.1",
+        },
+        devDependencies: {
+          jest: "^25.3.0",
+        },
+      },
+      null,
+      2
+    )
+  );
+  const [whiteListCode, setWhiteListCode] = useState("");
+
+  useEffect(() => {
+    try {
+      const pkg = JSON.parse(packageJSON);
+      const makeWhiteList = (deps, type) => {
+        if (deps) {
+          return (
+            `gen_enforced_dependency(WorkspaceCwd, DependencyIdent, null, ${type}) :-
+  workspace_has_dependency(WorkspaceCwd, DependencyIdent, _, ${type}), ` +
+            Object.keys(deps)
+              .map(
+                (k) => `
+  DependencyIdent \\= '${k}'`
+              )
+              .join(", ") +
+            "."
+          );
+        } else {
+          return "";
+        }
+      };
+      setWhiteListCode(
+        [
+          makeWhiteList(pkg.dependencies, "dependencies"),
+          makeWhiteList(pkg.devDependencies, "devDependencies"),
+        ]
+          .filter((t) => t.length > 0)
+          .join("\n\n")
+      );
+    } catch (e) {
+      whiteListCode = "Encountered an error parsing the package.json";
+    }
+  }, [packageJSON]);
+
+  return (
+    <>
+      <Paragraph>
+        So, you want to make sure that nobody depends on a module that you don't
+        know about. Ok.
+      </Paragraph>
+      <Paragraph>
+        Paste in your 'ideal' <Text code>package.json</Text> below and we'll
+        make whitelist rules for you.
+      </Paragraph>
+      <TextArea
+        value={packageJSON}
+        onChange={(evt) => setPackageJSON(evt.target.value)}
+        autoSize={{ minRows: 5, maxRows: 15 }}
+      />
+      <Paragraph>Here are your rules</Paragraph>
+      <Paragraph code copyable className="code-sample">
+        {whiteListCode}
+      </Paragraph>
+    </>
+  );
+};
 
 const RuleBuilder = () => {
   const [state, setState] = useState({
@@ -114,6 +189,7 @@ const RuleBuilder = () => {
           }
         />
       </Form.Item>
+      <Paragraph>Here is your rule</Paragraph>
       <Paragraph code copyable className="code-sample">
         {prolog}
       </Paragraph>
@@ -147,6 +223,8 @@ const App = () => (
       </Paragraph>
       <Title>The Rule Builder</Title>
       <RuleBuilder />
+      <Title>The Whitelist Builder</Title>
+      <WhiteListBuilder />
       <Title>Not That Motivated?</Title>
       <Paragraph>
         Yeah.&nbsp;
