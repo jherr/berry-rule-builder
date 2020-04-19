@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import ReactDOM from "react-dom";
-import { Layout, Typography, Input, Form, Select } from "antd";
+import { Layout, Typography, Input, Form, Select, Checkbox } from "antd";
 import "antd/dist/antd.css";
 import "./app.css";
 
@@ -25,6 +25,7 @@ const WhiteListBuilder = () => {
     )
   );
   const [whiteListCode, setWhiteListCode] = useState("");
+  const [lockVersion, setLockVersions] = useState(false);
 
   useEffect(() => {
     try {
@@ -47,10 +48,26 @@ const WhiteListBuilder = () => {
           return "";
         }
       };
+
+      const makeVersionLocks = (deps, type) =>
+        lockVersion
+          ? Object.entries(deps)
+              .map(
+                ([
+                  name,
+                  version,
+                ]) => `gen_enforced_dependency(WorkspaceCwd, '${name}', '${version}', ${type}) :-
+  workspace_has_dependency(WorkspaceCwd, '${name}', _, ${type}).`
+              )
+              .join("\n")
+          : "";
+
       setWhiteListCode(
         [
           makeWhiteList(pkg.dependencies || {}, "dependencies"),
           makeWhiteList(pkg.devDependencies || {}, "devDependencies"),
+          makeVersionLocks(pkg.dependencies || {}, "dependencies"),
+          makeVersionLocks(pkg.devDependencies || {}, "devDependencies"),
         ]
           .filter((t) => t.length > 0)
           .join("\n\n")
@@ -58,7 +75,7 @@ const WhiteListBuilder = () => {
     } catch (e) {
       whiteListCode = "Encountered an error parsing the package.json";
     }
-  }, [packageJSON]);
+  }, [packageJSON, lockVersion]);
 
   return (
     <>
@@ -75,6 +92,12 @@ const WhiteListBuilder = () => {
         onChange={(evt) => setPackageJSON(evt.target.value)}
         autoSize={{ minRows: 5, maxRows: 15 }}
       />
+      <Checkbox
+        onChange={(evt) => setLockVersions(evt.target.checked)}
+        checked={lockVersion}
+      >
+        Lock versions
+      </Checkbox>
       <Paragraph>Here are your rules</Paragraph>
       <Paragraph code copyable className="code-sample">
         {whiteListCode}
@@ -92,6 +115,11 @@ const RuleBuilder = () => {
     projectsNamed: "",
   });
 
+  const projectName =
+    state.projectsNamed.trim().length === 0
+      ? "WorkspaceCwd"
+      : `'${state.projectsNamed}'`;
+
   const version =
     state.versionType === "null" ? state.versionType : `'${state.version}'`;
 
@@ -99,21 +127,13 @@ const RuleBuilder = () => {
     state.versionType === "null"
       ? ""
       : `
-  workspace_has_dependency(WorkspaceCwd, '${state.moduleName}', _, ${state.dependencyType})`;
+  workspace_has_dependency(${projectName}, '${state.moduleName}', _, ${state.dependencyType})`;
 
-  const inProjectCheck =
-    state.projectsNamed.trim().length === 0
-      ? ""
-      : `
-  workspace_ident(WorkspaceCwd, '${state.projectsNamed}')`;
+  const additionalChecks = includesCheck
+    ? " :- " + [includesCheck].filter((t) => t.length > 0).join(",")
+    : "";
 
-  const additionalChecks =
-    includesCheck || inProjectCheck
-      ? " :- " +
-        [inProjectCheck, includesCheck].filter((t) => t.length > 0).join(",")
-      : "";
-
-  const prolog = `gen_enforced_dependency(WorkspaceCwd, '${state.moduleName}', ${version}, ${state.dependencyType})${additionalChecks}.`;
+  const prolog = `gen_enforced_dependency(${projectName}, '${state.moduleName}', ${version}, ${state.dependencyType})${additionalChecks}.`;
 
   return (
     <>
